@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+numpy
+scipy
+# --- free AI engine (AudioLDM2). Version pins matter (verified 2026-10-27):
+# transformers v5 removed GPT2 generation helpers that diffusers'
+# AudioLDM2 pipeline calls, so use the era-matched pair below.
+# torch (CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu)
+diffusers==0.30.3
+transformers==4.46.3
+accelerate

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>効果音ジェネレーター — AI生成 + フリー音源</title>
+<style>
+  body{font-family:-apple-system,"Hiragino Sans",sans-serif;background:#14161a;color:#eee;margin:0;padding:20px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:22px} h2{font-size:16px;margin-top:26px}
+  .card{background:#1e2127;border-radius:12px;padding:16px;margin:12px 0}
+  input[type=text],select{background:#2b2f36;color:#eee;border:1px solid #444;border-radius:8px;padding:9px;font-size:14px}
+  input[type=text]{width:100%;box-sizing:border-box}
+  button{background:#2b2f36;color:#eee;border:1px solid #444;border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer}
+  button.primary{background:#f5c542;color:#111;font-weight:700;border:none}
+  button.fav.on{color:#ff7eb6;border-color:#ff7eb6}
+  .chip{margin:3px 2px;font-size:12px}
+  .item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid #333;padding:10px 0}
+  .item .name{flex:1 1 180px;font-size:14px}
+  audio{height:34px;flex:2 1 220px}
+  .note{font-size:12px;color:#888;line-height:1.7}
+  .tabs button{margin-right:6px}.tabs button.act{background:#f5c542;color:#111;border:none;font-weight:700}
+  a{color:#f5c542;font-size:12px}
+  .tag{font-size:11px;color:#9ecbff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔊 効果音ジェネレーター</h1>
+  <p class="note">仕様: <b>お気に入りだけ</b>がこのブラウザに保持されます（サイトを閉じても残ります）。
+  それ以外の生成結果は保持されません（リロード／終了で消えます）。いつでもローカルにダウンロードできます。</p>
+
+  <div class="tabs">
+    <button id="tabGen" class="act">AI生成</button>
+    <button id="tabLib">フリー音源ライブラリ</button>
+    <button id="tabFav">★ お気に入り</button>
+  </div>
+
+  <section id="secGen">
+    <div class="card">
+      <input type="text" id="prompt" placeholder="作りたい音を書く（プリセットは日本語OK。自由入力は英語がおすすめ）">
+      <div id="chips" style="margin:8px 0"></div>
+      <label class="note">長さ <select id="seconds"><option>2</option><option selected>3</option><option>5</option><option>10</option></select> 秒</label>
+      <label class="note">エンジン <select id="engine">
+        <option value="auto">自動（AIがあればAI）</option><option value="ai">AI（AudioLDM2・無料）</option>
+        <option value="synth">簡易シンセ（即時・軽い）</option></select></label>
+      <button class="primary" id="go">生成する</button>
+      <span id="status" class="note"></span>
+      <p class="note" id="engineNote"></p>
+    </div>
+    <div class="card"><h2>生成結果（保持されません）</h2><div id="results"><p class="note">まだありません</p></div></div>
+  </section>
+
+  <section id="secLib" hidden>
+    <div class="card">
+      <input type="text" id="libSearch" placeholder="キーワードで探す（例: ホラー、勝利、ピアノ）">
+      <p class="note" id="libNote"></p>
+      <div id="libList"></div>
+    </div>
+  </section>
+
+  <section id="secFav" hidden>
+    <div class="card"><h2>★ お気に入り（このブラウザに保持）</h2><div id="favList"><p class="note">まだありません</p></div></div>
+  </section>
+</div>
+<script>
+// ---------- IndexedDB for favorite generated-audio blobs ----------
+const idb = new Promise((res, rej) => {
+  const r = indexedDB.open('sfx-generator', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('favAudio', { keyPath: 'id' });
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+async function idbAll() { const db = await idb; return new Promise(res => {
+  const out = []; const cur = db.transaction('favAudio').objectStore('favAudio').openCursor();
+  cur.onsuccess = e => { const c = e.target.result; if (c) { out.push(c.value); c.continue(); } else res(out); }; }); }
+async function idbPut(v) { const db = await idb; db.transaction('favAudio', 'readwrite').objectStore('favAudio').put(v); }
+async function idbDel(id) { const db = await idb; db.transaction('favAudio', 'readwrite').objectStore('favAudio').delete(id); }
+
+// ---------- state: generated results live ONLY in this page's memory ----------
+let generated = [];   // {id, prompt, engine, url(blob:), blob}
+let libItems = [], libFavs = new Set(JSON.parse(localStorage.getItem('sfx-lib-favs') || '[]'));
+const $ = id => document.getElementById(id);
+
+function dl(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }
+
+function itemRow({ name, url, onFav, favOn, extra }) {
+  const div = document.createElement('div'); div.className = 'item';
+  div.innerHTML = `<span class="name"></span>`;
+  div.querySelector('.name').textContent = name;
+  const au = document.createElement('audio'); au.controls = true; au.src = url; div.appendChild(au);
+  const bDl = document.createElement('button'); bDl.textContent = '⬇ DL'; bDl.onclick = () => dl(url, name.replace(/[^\wぁ-んァ-ヶ一-龠-]/g, '_') + '.wav'); div.appendChild(bDl);
+  const bFav = document.createElement('button'); bFav.className = 'fav' + (favOn ? ' on' : ''); bFav.textContent = favOn ? '★ お気に入り済' : '☆ お気に入り';
+  bFav.onclick = () => onFav(bFav); div.appendChild(bFav);
+  if (extra) div.appendChild(extra);
+  return div;
+}
+
+async function renderResults() {
+  const box = $('results'); box.innerHTML = '';
+  if (!generated.length) { box.innerHTML = '<p class="note">まだありません</p>'; return; }
+  const favs = await idbAll(); const favIds = new Set(favs.map(f => f.srcId));
+  for (const g of generated) {
+    box.appendChild(itemRow({
+      name: `${g.prompt}（${g.engine}）`, url: g.url, favOn: favIds.has(g.id),
+      onFav: async btn => {
+        if (favIds.has(g.id)) { await idbDel('gen-' + g.id); }
+        else { await idbPut({ id: 'gen-' + g.id, srcId: g.id, kind: 'gen', name: g.prompt, engine: g.engine, blob: g.blob, ts: Date.now() }); }
+        renderResults(); renderFavs();
+      }}));
+  }
+}
+
+async function renderFavs() {
+  const box = $('favList'); box.innerHTML = '';
+  const favs = await idbAll();
+  let any = false;
+  for (const f of favs.sort((a, b) => a.ts - b.ts)) {
+    any = true;
+    const url = URL.createObjectURL(f.blob);
+    box.appendChild(itemRow({ name: `🎧 ${f.name}（${f.engine}）`, url, favOn: true,
+      onFav: async () => { await idbDel(f.id); renderFavs(); renderResults(); } }));
+  }
+  for (const it of libItems.filter(i => libFavs.has(i.id))) {
+    any = true;
+    const link = document.createElement('a'); link.href = it.page; link.target = '_blank'; link.textContent = '元サイト（条件確認）';
+    box.appendChild(itemRow({ name: `📚 ${it.title}`, url: it.mp3, favOn: true, extra: link,
+      onFav: async () => { libFavs.delete(it.id); saveLibFavs(); renderFavs(); renderLib(); } }));
+  }
+  if (!any) box.innerHTML = '<p class="note">まだありません</p>';
+}
+
+function saveLibFavs() { localStorage.setItem('sfx-lib-favs', JSON.stringify([...libFavs])); }
+
+function renderLib() {
+  const q = $('libSearch').value.trim();
+  const box = $('libList'); box.innerHTML = '';
+  for (const it of libItems.filter(i => !q || i.title.includes(q) || i.tags.some(t => t.includes(q)))) {
+    const link = document.createElement('a'); link.href = it.page; link.target = '_blank'; link.textContent = '元サイト（条件確認・WAV版）';
+    const tags = document.createElement('span'); tags.className = 'tag'; tags.textContent = it.tags.join(' / ');
+    const wrap = document.createElement('span'); wrap.appendChild(tags); wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(link);
+    box.appendChild(itemRow({ name: it.title, url: it.mp3, favOn: libFavs.has(it.id), extra: wrap,
+      onFav: async () => { libFavs.has(it.id) ? libFavs.delete(it.id) : libFavs.add(it.id); saveLibFavs(); renderLib(); renderFavs(); } }));
+  }
+}
+
+// ---------- tabs ----------
+function show(sec) {
+  for (const [b, s] of [['tabGen', 'secGen'], ['tabLib', 'secLib'], ['tabFav', 'secFav']]) {
+    $(b).classList.toggle('act', s === sec); $(s).hidden = s !== sec;
+  }
+}
+$('tabGen').onclick = () => show('secGen');
+$('tabLib').onclick = () => show('secLib');
+$('tabFav').onclick = () => { show('secFav'); renderFavs(); };
+
+// ---------- init ----------
+(async () => {
+  const eng = await (await fetch('/api/engines')).json();
+  $('engineNote').textContent = eng.ai_audioldm2
+    ? 'AIエンジン（AudioLDM2・無料／ローカル）: 利用可能。' + eng.ai_note
+    : 'AIエンジン未導入のため簡易シンセで生成します。AIを使うにはサーバー側で torch + diffusers を入れてください（README）。';
+  const presets = await (await fetch('/api/presets')).json();
+  for (const p of presets) {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = p.jp;
+    b.onclick = () => { $('prompt').value = p.jp; };
+    $('chips').appendChild(b);
+  }
+  const lib = await (await fetch('/api/library')).json();
+  libItems = lib.items;
+  $('libNote').innerHTML = `出典: <a href="${lib.source.top_url}" target="_blank">${lib.source.name}</a> — ${lib.source.note}`;
+  renderLib(); renderFavs();
+})();
+
+$('libSearch').oninput = renderLib;
+
+$('go').onclick = async () => {
+  const prompt = $('prompt').value.trim(); if (!prompt) return;
+  $('go').disabled = true; $('status').textContent = '生成中…（AIは初回モデルDLと計算で数分かかることがあります）';
+  try {
+    const r = await (await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, seconds: +$('seconds').value, engine: $('engine').value }) })).json();
+    if (!r.ok) { $('status').textContent = '⚠ ' + r.error; return; }
+    const resp = await fetch(r.url); const blob = await resp.blob();
+    generated.unshift({ id: r.id, prompt, engine: r.engine_used, url: URL.createObjectURL(blob), blob });
+    $('status').textContent = `生成完了（${r.engine_used}）`;
+    renderResults();
+  } catch (e) { $('status').textContent = '⚠ ' + e; }
+  $('go').disabled = false;
+};
+</script>
+</body>
+</html>
