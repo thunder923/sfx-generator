@@ -4,10 +4,10 @@ cd "$(dirname "$0")/.."
 PORT=8300
 URL="http://localhost:${PORT}"
 
-if curl -s -o /dev/null --max-time 2 "$URL"; then
-  open -a Safari "$URL"
-  exit 0
-fi
+# 起動済みサーバーがあっても、venv やコードの更新を反映するため必ず作り直す
+# （旧仕様は「応答したら開くだけ」で、古い venv のサーバーが残り続け AI 未導入判定になる事故があった）
+for p in $(lsof -ti tcp:${PORT} -sTCP:LISTEN 2>/dev/null); do kill $p; done
+sleep 1
 
 if [ ! -d .venv ]; then
   python3 -m venv .venv
