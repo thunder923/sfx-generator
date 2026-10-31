@@ -105,8 +105,12 @@ audition_links = [
     ("インパクト・打撃音", f"{AUD}/impacts/"),
     ("工業・機械音", f"{AUD}/industry/"),
     ("液体・水音", f"{AUD}/liquidandwater/"),
+    ("Web・UI・マルチメディア", f"{AUD}/multimedia/"),
+    ("ノイズ・トーン・DTMF・テスト", f"{AUD}/noisetonesdtmfandtests/"),
+    ("プロダクション・エレメント", f"{AUD}/productionelements/"),
     ("SF・サイエンスフィクション", f"{AUD}/sciencefiction/"),
     ("スポーツ効果音", f"{AUD}/sports/"),
+    ("テクノロジー・電子機器", f"{AUD}/technology/"),
     ("乗り物・交通機関", f"{AUD}/transportation/"),
     ("水中音（112件）", f"{AUD}/underwater/"),
     ("武器・銃声", f"{AUD}/weapons/"),
@@ -133,6 +137,8 @@ browse_links = [
     {"title": "HSP3 案内・利用規約", "url": "https://sounds.pronama.jp/hsp3/terms/", "group": "HSP3 無料素材"},
 ] + [
     {"title": f"Adobe Audition: {t}", "url": u, "group": "Adobe Audition"} for t, u in audition_links
+] + [
+    {"title": "Adobe Audition 案内・利用規約", "url": f"{AUD}/terms/", "group": "Adobe Audition"},
 ] + [
     {"title": "VSQ plus+ トップ（全1,726種類）", "url": "https://vsq.co.jp/plus/", "group": "VSQ plus+"},
 ] + [
