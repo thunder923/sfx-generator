@@ -64,6 +64,9 @@
   audio{height:34px;flex:2 1 220px}
   .note{font-size:12px;color:#888;line-height:1.7}
   .tabs button{margin-right:6px}.tabs button.act{background:#f5c542;color:#111;border:none;font-weight:700}
+  h3{font-size:14px;color:#f5c542;margin:16px 0 4px}
+  .guide{font-size:12.5px;color:#bbb;line-height:1.8;margin:4px 0 10px;padding-left:20px;overflow-wrap:anywhere}
+  .guide li{margin:3px 0}
   a{color:#f5c542;font-size:12px}
   .tag{font-size:11px;color:#9ecbff}
   /* 端末適応 (device-adaptive): 物理端末クラスで出し分け (セーフエリア等の端末固有分のみ) */
@@ -98,6 +101,8 @@
     <button id="tabGen" class="act">AI生成</button>
     <button id="tabLib">フリー音源ライブラリ</button>
     <button id="tabFav">★ お気に入り</button>
+    <button id="tabHelp">📖 使い方</button>
+    <button id="tabPriv">🔒 プライバシー</button>
   </div>
 
   <section id="secGen">
@@ -125,6 +130,47 @@
 
   <section id="secFav" hidden>
     <div class="card"><h2>★ お気に入り（このブラウザに保持）</h2><div id="favList"><p class="note">まだありません</p></div></div>
+  </section>
+
+  <section id="secHelp" hidden>
+    <div class="card">
+      <h2>📖 使い方</h2>
+      <h3>起動</h3>
+      <ul class="guide">
+        <li>Mac: <code>mac/一発起動.command</code> をダブルクリックすると Safari でこの画面が開きます。</li>
+        <li>直接起動: <code>.venv/bin/python app.py</code> → ブラウザで <code>http://localhost:8300</code></li>
+      </ul>
+      <h3>AI生成</h3>
+      <ol class="guide">
+        <li>作りたい音を入力する（プリセットのボタンは日本語OK。自由入力は英語がおすすめ）。</li>
+        <li>長さとエンジンを選んで「生成する」。AI（AudioLDM2）は初回だけモデル（約3.5GB）の自動ダウンロードがあり、生成にも時間がかかります。</li>
+        <li>気に入ったら ⬇ DL で保存するか、☆ お気に入りに入れる。</li>
+      </ol>
+      <h3>フリー音源ライブラリ</h3>
+      <ul class="guide">
+        <li>キーワードで検索して試聴・DL できます。出典は「プロ生 無料素材」で、利用条件はカテゴリごとに違うので、使う前に必ず元サイトで確認してください。</li>
+      </ul>
+      <h3>保存先と注意点</h3>
+      <ul class="guide">
+        <li><b>保持されるのはお気に入りだけ</b>です（このブラウザの中に保存）。それ以外の生成結果はリロード／サーバー再起動で消えるので、残したい音は必ず DL かお気に入りを。</li>
+        <li>DL したファイルはブラウザのダウンロード先に保存されます。</li>
+        <li>AI エンジンが入っていない環境では「簡易シンセ」で生成されます（画面上部に表示されます）。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="secPriv" hidden>
+    <div class="card">
+      <h2>🔒 プライバシーポリシー</h2>
+      <ul class="guide">
+        <li><b>生成はすべてこのマシンの中で行われます。</b>入力したプロンプトや、生成した音が外部のサーバーへ送信されることはありません。</li>
+        <li>AI モデル（AudioLDM2）を使う場合、<b>初回の生成時だけ</b>モデル本体（約3.5GB）を Hugging Face から自動ダウンロードします。このとき外へ出るのはモデル取得のリクエストだけで、プロンプト等のデータは送信されません。</li>
+        <li>お気に入りは、お使いの<b>ブラウザの中だけ</b>に保存されます（生成音は IndexedDB、ライブラリのお気に入りは localStorage）。サーバー側に保存されることはなく、サーバーは生成結果もメモリ上だけに持ち、ディスクには何も書きません。</li>
+        <li>フリー音源ライブラリの音源は、出典サイト（プロ生 無料素材）のサーバーから直接読み込んで再生します。ライブラリを開くと出典サイトへアクセスし、「元サイト」のリンクは外部サイトを開きます。</li>
+        <li>作者への送信や、利用状況の収集（アクセス解析・テレメトリ）はありません。</li>
+        <li>この画面は同じネットワーク（自宅 LAN / Tailscale）内の端末からも開けます。パスワード等の認証はないので、信頼できるネットワークの中だけで使ってください。</li>
+      </ul>
+    </div>
   </section>
 </div>
 <script>
@@ -209,13 +255,15 @@ function renderLib() {
 
 // ---------- tabs ----------
 function show(sec) {
-  for (const [b, s] of [['tabGen', 'secGen'], ['tabLib', 'secLib'], ['tabFav', 'secFav']]) {
+  for (const [b, s] of [['tabGen', 'secGen'], ['tabLib', 'secLib'], ['tabFav', 'secFav'], ['tabHelp', 'secHelp'], ['tabPriv', 'secPriv']]) {
     $(b).classList.toggle('act', s === sec); $(s).hidden = s !== sec;
   }
 }
 $('tabGen').onclick = () => show('secGen');
 $('tabLib').onclick = () => show('secLib');
 $('tabFav').onclick = () => { show('secFav'); renderFavs(); };
+$('tabHelp').onclick = () => show('secHelp');
+$('tabPriv').onclick = () => show('secPriv');
 
 // ---------- init ----------
 (async () => {
