@@ -132,6 +132,8 @@ vsq_links = [
 browse_links = [
     {"title": "プロ生 無料素材トップ（効果音・音声・BGM 全カテゴリー）", "url": "https://sounds.pronama.jp/", "group": "プロ生 無料素材"},
     {"title": "ゲームBGM カテゴリー", "url": "https://sounds.pronama.jp/pronama/bgm/", "group": "プロ生 無料素材"},
+    {"title": "レトロ機器 カテゴリー", "url": "https://sounds.pronama.jp/pronama/retro/", "group": "プロ生 無料素材"},
+    {"title": "プロ生 無料素材 案内・利用規約", "url": "https://sounds.pronama.jp/pronama/terms/", "group": "プロ生 無料素材"},
     {"title": "HSP3 効果音（34件・このライブラリに収録済み）", "url": HSP3_SOUNDS_PAGE, "group": "HSP3 無料素材"},
     {"title": "HSP3 BGM（18件・このライブラリに収録済み）", "url": HSP3_BGM_PAGE, "group": "HSP3 無料素材"},
     {"title": "HSP3 案内・利用規約", "url": "https://sounds.pronama.jp/hsp3/terms/", "group": "HSP3 無料素材"},
