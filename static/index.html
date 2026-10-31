@@ -2,7 +2,22 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  // 端末認識: 実画面サイズ (screen.width × devicePixelRatio) とタッチ有無から端末クラスを付ける
+  (function () {
+    var dpr = window.devicePixelRatio || 1;
+    var pw = Math.round(screen.width * dpr), ph = Math.round(screen.height * dpr);
+    var shortCss = Math.min(screen.width, screen.height);
+    var touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+    var dev = "desktop";
+    if (touch && shortCss <= 500) dev = "phone";
+    else if (touch && shortCss <= 1100) dev = "tablet";
+    var el = document.documentElement;
+    el.setAttribute("data-device", dev);
+    el.setAttribute("data-screen", pw + "x" + ph);
+  })();
+</script>
 <title>効果音ジェネレーター — AI生成 + フリー音源</title>
 <style>
   *{box-sizing:border-box}
@@ -38,6 +53,14 @@
   .tabs button{margin-right:6px}.tabs button.act{background:#f5c542;color:#111;border:none;font-weight:700}
   a{color:#f5c542;font-size:12px}
   .tag{font-size:11px;color:#9ecbff}
+  /* 端末適応 (device-adaptive): 端末クラスで出し分け */
+  html[data-device="phone"] body{min-height:100dvh;padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left));padding-right:calc(12px + env(safe-area-inset-right));padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  html[data-device="phone"] .item{flex-direction:column;align-items:stretch}
+  html[data-device="phone"] .item audio{flex:none;width:100%}
+  html[data-device="phone"] button{min-height:44px}
+  html[data-device="tablet"] .wrap{max-width:940px}
+  html[data-device="desktop"] .wrap{max-width:1080px}
+  html[data-device="desktop"] body{padding:32px}
 </style>
 </head>
 <body>
