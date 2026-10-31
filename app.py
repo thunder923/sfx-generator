@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from gen import ai_engine, procedural
-from gen.presets import PRESETS, preset_for
+from gen.presets import PRESETS, preset_for, translate_free
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="SFX Generator")
@@ -79,10 +79,13 @@ def generate(req: GenReq):
     used = None
     audio = None
     sr = procedural.SR
+    # No explicit seed -> roll a fresh one each time, so retrying the same
+    # prompt gives a different take instead of the identical sound.
+    seed = req.seed if req.seed is not None else int(uuid.uuid4().int % 1_000_000)
+    prompt_en = preset["en"] if preset else (translate_free(req.prompt) or req.prompt)
     if engine in ("auto", "ai") and ai_engine.available():
         try:
-            prompt_en = preset["en"] if preset else req.prompt
-            audio = ai_engine.generate(prompt_en, dur=min(req.seconds, 10.24), seed=req.seed)
+            audio = ai_engine.generate(prompt_en, dur=min(req.seconds, 10.24), seed=seed)
             sr = ai_engine.SAMPLE_RATE
             used = "audioldm2"
         except Exception as e:
@@ -90,12 +93,13 @@ def generate(req: GenReq):
                 return {"ok": False, "error": f"AI生成に失敗しました: {e}"}
             audio = None  # fall through to synth
     if audio is None:
-        audio, recipe = procedural.synthesize(req.prompt, dur=req.seconds, seed=req.seed)
+        audio, recipe = procedural.synthesize(req.prompt, dur=req.seconds, seed=seed)
         used = f"synth:{recipe}"
     job = uuid.uuid4().hex[:12]
     JOBS[job] = to_wav_bytes(np.asarray(audio, dtype=np.float32), sr)
     return {"ok": True, "id": job, "url": f"/api/file/{job}",
-            "engine_used": used, "sample_rate": sr}
+            "engine_used": used, "sample_rate": sr, "seed": seed,
+            "prompt_used": prompt_en if used == "audioldm2" else req.prompt}
 
 
 @app.get("/api/file/{job}")

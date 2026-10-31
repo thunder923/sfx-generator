@@ -107,7 +107,7 @@
 
   <section id="secGen">
     <div class="card">
-      <input type="text" id="prompt" placeholder="作りたい音を書く（プリセットは日本語OK。自由入力は英語がおすすめ）">
+      <input type="text" id="prompt" placeholder="作りたい音を書く（プリセットは日本語OK。自由入力は代表的な音は日本語でも読み替えますが、細かい指定は英語が確実）">
       <div id="chips" style="margin:8px 0"></div>
       <label class="note">長さ <select id="seconds"><option>2</option><option selected>3</option><option>5</option><option>10</option></select> 秒</label>
       <label class="note">エンジン <select id="engine">
@@ -143,7 +143,7 @@
       </ul>
       <h3>AI生成</h3>
       <ol class="guide">
-        <li>作りたい音を入力する（プリセットのボタンは日本語OK。自由入力は英語がおすすめ）。</li>
+        <li>作りたい音を入力する（プリセットのボタンは日本語OK。自由入力は「川」「雨」など代表的な音なら日本語でも読み替えますが、細かいニュアンスは英語で書くのが確実）。</li>
         <li>長さとエンジンを選んで「生成する」。AI（AudioLDM2）は初回だけモデル（約3.5GB）の自動ダウンロードがあり、生成にも時間がかかります。</li>
         <li>気に入ったら ⬇ DL で保存するか、☆ お気に入りに入れる。</li>
       </ol>
@@ -314,7 +314,7 @@ $('go').onclick = async () => {
     if (!r.ok) { $('status').textContent = '⚠ ' + r.error; return; }
     const resp = await fetch(r.url); const blob = await resp.blob();
     generated.unshift({ id: r.id, prompt, engine: r.engine_used, url: URL.createObjectURL(blob), blob });
-    $('status').textContent = `生成完了（${r.engine_used}）`;
+    $('status').textContent = `生成完了（${r.engine_used}）` + (r.engine_used === 'audioldm2' && r.prompt_used ? `プロンプト: ${r.prompt_used}` : '') + '　※もう一度押すと別の音が出ます';
     renderResults();
   } catch (e) { $('status').textContent = '⚠ ' + e; }
   $('go').disabled = false;
