@@ -79,12 +79,19 @@ echo "--- AudioLDM2 用ライブラリをインストールします（diffusers
 "$PIP" install diffusers==0.30.3 transformers==4.46.3 accelerate
 echo
 
+# 4.2) 日本語→英語のローカル翻訳モデル用ライブラリ
+# (自由入力の日本語を AudioLDM2 用に英語化する MarianMT が使う)
+echo "--- 翻訳モデル用ライブラリをインストールします（sentencepiece / sacremoses）---"
+"$PIP" install sentencepiece sacremoses
+echo
+
 # 4.5) 導入チェック (入ったかどうかを必ず確認してから次へ)
 echo "--- 導入チェック ---"
 if "$PY" - <<'PYEOF'
-import torch, diffusers, transformers
+import torch, diffusers, transformers, sentencepiece
 print(f"torch {torch.__version__} / diffusers {diffusers.__version__} / transformers {transformers.__version__}")
 print("MPS (Apple Silicon GPU):", torch.backends.mps.is_available())
+print("翻訳モデル用 sentencepiece: OK")
 PYEOF
 then
   AI_OK=1
@@ -109,6 +116,20 @@ PYEOF
   else
     echo "⚠️ モデルの先行ダウンロードに失敗しました（上のエラーが原因です。ネット接続も確認してください）。"
     echo "   初回生成時にも自動でダウンロードされるので、このまま進んでも大丈夫です。"
+  fi
+  echo
+
+  # 5.5) 日本語→英語 翻訳モデル (Helsinki-NLP/opus-mt-ja-en、約300MB)
+  echo "--- 翻訳モデル（日→英）を先にダウンロードします（約300MB）---"
+  if "$PY" - <<'PYEOF'
+from huggingface_hub import snapshot_download
+path = snapshot_download("Helsinki-NLP/opus-mt-ja-en")
+print("ダウンロード完了:", path)
+PYEOF
+  then
+    echo "✅ 翻訳モデルのダウンロード完了"
+  else
+    echo "⚠️ 翻訳モデルの先行ダウンロードに失敗しました（初回翻訳時に自動でダウンロードされます）。"
   fi
   echo
 fi

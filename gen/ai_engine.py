@@ -40,7 +40,8 @@ def _load():
     return _pipe
 
 
-def generate(prompt_en: str, dur: float = 5.0, seed: int | None = None) -> np.ndarray:
+def generate(prompt_en: str, dur: float = 5.0, seed: int | None = None,
+             guidance: float = 3.5) -> np.ndarray:
     import torch
     pipe = _load()
     device = next(pipe.unet.parameters()).device
@@ -50,6 +51,7 @@ def generate(prompt_en: str, dur: float = 5.0, seed: int | None = None) -> np.nd
         negative_prompt="low quality, music, speech, voice",
         num_inference_steps=100 if device.type == "cpu" else 200,
         audio_length_in_s=float(np.clip(dur, 1.0, 10.24)),
+        guidance_scale=float(guidance),
         generator=gen,
     )
     return np.asarray(out.audios[0], dtype=np.float32)

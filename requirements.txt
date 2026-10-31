@@ -13,3 +13,8 @@ scipy
 diffusers==0.30.3
 transformers==4.46.3
 accelerate
+# sentencepiece enables the fully-local JP->EN translation model
+# (Helsinki-NLP/opus-mt-ja-en) used for free-form Japanese prompts;
+# without it the app falls back to the Google Translate web endpoint.
+sentencepiece
+sacremoses

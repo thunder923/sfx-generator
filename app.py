@@ -23,8 +23,8 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from gen import ai_engine, procedural
-from gen.presets import PRESETS, preset_for, translate_free
+from gen import ai_engine, procedural, translate
+from gen.presets import PRESETS, preset_for
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="SFX Generator")
@@ -49,6 +49,7 @@ class GenReq(BaseModel):
     seconds: float = 3.0
     engine: str = "auto"  # auto | ai | synth
     seed: int | None = None
+    guidance: float | None = None  # AudioLDM2 guidance_scale (variety lever)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -82,10 +83,12 @@ def generate(req: GenReq):
     # No explicit seed -> roll a fresh one each time, so retrying the same
     # prompt gives a different take instead of the identical sound.
     seed = req.seed if req.seed is not None else int(uuid.uuid4().int % 1_000_000)
-    prompt_en = preset["en"] if preset else (translate_free(req.prompt) or req.prompt)
+    guidance = req.guidance if req.guidance is not None else 3.5
+    prompt_en = preset["en"] if preset else (translate.to_english(req.prompt) or req.prompt)
     if engine in ("auto", "ai") and ai_engine.available():
         try:
-            audio = ai_engine.generate(prompt_en, dur=min(req.seconds, 10.24), seed=seed)
+            audio = ai_engine.generate(prompt_en, dur=min(req.seconds, 10.24), seed=seed,
+                                       guidance=guidance)
             sr = ai_engine.SAMPLE_RATE
             used = "audioldm2"
         except Exception as e:
@@ -98,7 +101,7 @@ def generate(req: GenReq):
     job = uuid.uuid4().hex[:12]
     JOBS[job] = to_wav_bytes(np.asarray(audio, dtype=np.float32), sr)
     return {"ok": True, "id": job, "url": f"/api/file/{job}",
-            "engine_used": used, "sample_rate": sr, "seed": seed,
+            "engine_used": used, "sample_rate": sr, "seed": seed, "guidance": guidance,
             "prompt_used": prompt_en if used == "audioldm2" else req.prompt}
 
 
