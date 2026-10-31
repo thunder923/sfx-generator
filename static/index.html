@@ -16,6 +16,19 @@
     var el = document.documentElement;
     el.setAttribute("data-device", dev);
     el.setAttribute("data-screen", pw + "x" + ph);
+    // ウィンドウ幅でレイアウトを切り替える (リサイズにライブで追従、リロードはしない)
+    function applyWin() {
+      var w = window.innerWidth || el.clientWidth || 0;
+      el.dataset.win = w <= 640 ? "narrow" : (w <= 1024 ? "medium" : "wide");
+    }
+    var winTimer = null;
+    function onWinChange() {
+      if (winTimer) clearTimeout(winTimer);
+      winTimer = setTimeout(applyWin, 100);
+    }
+    applyWin();
+    window.addEventListener("resize", onWinChange);
+    window.addEventListener("orientationchange", onWinChange);
   })();
 </script>
 <title>効果音ジェネレーター — AI生成 + フリー音源</title>
@@ -53,14 +66,26 @@
   .tabs button{margin-right:6px}.tabs button.act{background:#f5c542;color:#111;border:none;font-weight:700}
   a{color:#f5c542;font-size:12px}
   .tag{font-size:11px;color:#9ecbff}
-  /* 端末適応 (device-adaptive): 端末クラスで出し分け */
+  /* 端末適応 (device-adaptive): 物理端末クラスで出し分け (セーフエリア等の端末固有分のみ) */
   html[data-device="phone"] body{min-height:100dvh;padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left));padding-right:calc(12px + env(safe-area-inset-right));padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   html[data-device="phone"] .item{flex-direction:column;align-items:stretch}
   html[data-device="phone"] .item audio{flex:none;width:100%}
   html[data-device="phone"] button{min-height:44px}
-  html[data-device="tablet"] .wrap{max-width:940px}
-  html[data-device="desktop"] .wrap{max-width:1080px}
-  html[data-device="desktop"] body{padding:32px}
+  /* ウィンドウ適応 (window-adaptive): 今のウィンドウ幅でレイアウトを切り替える (リサイズにライブで追従) */
+  html[data-win="narrow"] body{padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+  html[data-win="narrow"] .wrap{max-width:100%}
+  html[data-win="narrow"] .card{padding:12px}
+  html[data-win="narrow"] h1{font-size:20px}
+  html[data-win="narrow"] input[type=text]{font-size:16px}
+  html[data-win="narrow"] .card label{display:block;margin:6px 0}
+  html[data-win="narrow"] .item{flex-direction:column;align-items:stretch}
+  html[data-win="narrow"] .item .name{flex:none}
+  html[data-win="narrow"] .item audio{flex:none;width:100%}
+  html[data-win="narrow"] .item button{width:100%}
+  html[data-win="narrow"] .chip{min-height:40px}
+  html[data-win="medium"] .wrap{max-width:940px}
+  html[data-win="wide"] .wrap{max-width:1080px}
+  html[data-win="wide"] body{padding:32px}
 </style>
 </head>
 <body>
