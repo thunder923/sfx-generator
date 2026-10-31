@@ -122,8 +122,9 @@
 
   <section id="secLib" hidden>
     <div class="card">
-      <input type="text" id="libSearch" placeholder="キーワードで探す（例: ホラー、勝利、ピアノ）">
+      <input type="text" id="libSearch" placeholder="キーワードで探す（例: ホラー、勝利、ピアノ、HSP3、爆発）">
       <p class="note" id="libNote"></p>
+      <div id="libBrowse"></div>
       <div id="libList"></div>
     </div>
   </section>
@@ -148,7 +149,9 @@
       </ol>
       <h3>フリー音源ライブラリ</h3>
       <ul class="guide">
-        <li>キーワードで検索して試聴・DL できます。出典は「プロ生 無料素材」で、利用条件はカテゴリごとに違うので、使う前に必ず元サイトで確認してください。</li>
+        <li>キーワードで検索して試聴・DL できます。収録分は「プロ生 無料素材（ゲームBGM 21件）」と「HSP3 無料素材（効果音34件＋BGM 18件）」です。</li>
+        <li>「Adobe Audition」と「VSQ plus+」は件数が膨大なため、カテゴリー別リンクから元サイトを開いて試聴・DL する形にしています。</li>
+        <li>利用条件は出典・カテゴリーごとに違うので、使う前に必ず元サイトで確認してください（VSQ plus+ は商用可・表記不要ですが、素材そのものの再配布・販売は禁止です）。</li>
       </ul>
       <h3>保存先と注意点</h3>
       <ul class="guide">
@@ -166,7 +169,7 @@
         <li><b>生成はすべてこのマシンの中で行われます。</b>入力したプロンプトや、生成した音が外部のサーバーへ送信されることはありません。</li>
         <li>AI モデル（AudioLDM2）を使う場合、<b>初回の生成時だけ</b>モデル本体（約3.5GB）を Hugging Face から自動ダウンロードします。このとき外へ出るのはモデル取得のリクエストだけで、プロンプト等のデータは送信されません。</li>
         <li>お気に入りは、お使いの<b>ブラウザの中だけ</b>に保存されます（生成音は IndexedDB、ライブラリのお気に入りは localStorage）。サーバー側に保存されることはなく、サーバーは生成結果もメモリ上だけに持ち、ディスクには何も書きません。</li>
-        <li>フリー音源ライブラリの音源は、出典サイト（プロ生 無料素材）のサーバーから直接読み込んで再生します。ライブラリを開くと出典サイトへアクセスし、「元サイト」のリンクは外部サイトを開きます。</li>
+        <li>フリー音源ライブラリの音源は、出典サイト（プロ生 無料素材／HSP3 無料素材）のサーバーから直接読み込んで再生します。ライブラリを開くと出典サイトへアクセスし、「元サイト」や Adobe Audition／VSQ plus+ のカテゴリーリンクは外部サイトを開きます。</li>
         <li>作者への送信や、利用状況の収集（アクセス解析・テレメトリ）はありません。</li>
         <li>この画面は同じネットワーク（自宅 LAN / Tailscale）内の端末からも開けます。パスワード等の認証はないので、信頼できるネットワークの中だけで使ってください。</li>
       </ul>
@@ -241,12 +244,27 @@ async function renderFavs() {
 
 function saveLibFavs() { localStorage.setItem('sfx-lib-favs', JSON.stringify([...libFavs])); }
 
+function renderBrowse(links) {
+  const box = $('libBrowse'); box.innerHTML = '';
+  const groups = {};
+  for (const l of links) (groups[l.group || 'その他'] ||= []).push(l);
+  for (const [g, ls] of Object.entries(groups)) {
+    const h = document.createElement('h3'); h.textContent = `🔗 ${g} のカテゴリーページ`; box.appendChild(h);
+    const p = document.createElement('p'); p.className = 'note';
+    ls.forEach((l, idx) => {
+      const a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.style.fontSize = '13px'; a.textContent = l.title;
+      p.appendChild(a); if (idx < ls.length - 1) p.appendChild(document.createTextNode(' ／ '));
+    });
+    box.appendChild(p);
+  }
+}
+
 function renderLib() {
   const q = $('libSearch').value.trim();
   const box = $('libList'); box.innerHTML = '';
-  for (const it of libItems.filter(i => !q || i.title.includes(q) || i.tags.some(t => t.includes(q)))) {
+  for (const it of libItems.filter(i => !q || i.title.includes(q) || (i.source || '').includes(q) || i.tags.some(t => t.includes(q)))) {
     const link = document.createElement('a'); link.href = it.page; link.target = '_blank'; link.textContent = '元サイト（条件確認・WAV版）';
-    const tags = document.createElement('span'); tags.className = 'tag'; tags.textContent = it.tags.join(' / ');
+    const tags = document.createElement('span'); tags.className = 'tag'; tags.textContent = (it.source ? `【${it.source}】 ` : '') + it.tags.join(' / ');
     const wrap = document.createElement('span'); wrap.appendChild(tags); wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(link);
     box.appendChild(itemRow({ name: it.title, url: it.mp3, favOn: libFavs.has(it.id), extra: wrap,
       onFav: async () => { libFavs.has(it.id) ? libFavs.delete(it.id) : libFavs.add(it.id); saveLibFavs(); renderLib(); renderFavs(); } }));
@@ -279,7 +297,9 @@ $('tabPriv').onclick = () => show('secPriv');
   }
   const lib = await (await fetch('/api/library')).json();
   libItems = lib.items;
-  $('libNote').innerHTML = `出典: <a href="${lib.source.top_url}" target="_blank">${lib.source.name}</a> — ${lib.source.note}`;
+  const srcs = lib.sources || [lib.source];
+  $('libNote').innerHTML = srcs.map(s => `出典: <a href="${s.top_url}" target="_blank">${s.name}</a> — ${s.note}`).join('<br>');
+  renderBrowse(lib.browse_links || []);
   renderLib(); renderFavs();
 })();
 

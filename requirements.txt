@@ -6,6 +6,9 @@ scipy
 # --- free AI engine (AudioLDM2). Version pins matter (verified 2026-10-27):
 # transformers v5 removed GPT2 generation helpers that diffusers'
 # AudioLDM2 pipeline calls, so use the era-matched pair below.
+# Python must be 3.12 / 3.13 (found 2026-10-31): tokenizers 0.20.x, required
+# by transformers==4.46.3, ships no Python 3.14 wheel and its source build
+# fails on PyO3's 3.13 cap. Mac setup script therefore builds the venv on 3.12.
 # torch (CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu)
 diffusers==0.30.3
 transformers==4.46.3

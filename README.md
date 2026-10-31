@@ -14,10 +14,13 @@
 | 簡易シンセ | DSP合成レシピ12種（爆発／雨／風／雷／波／ビープ／チャイム／ノック／足音／水滴／剣／魔法）。即時生成 | ✅ 動作検証済み |
 
 ## フリー音源ライブラリ
-- 出典: [プロ生 無料素材 (sounds.pronama.jp)](https://sounds.pronama.jp/)
-- プロ生 無料素材（ゲームBGM）21件を、実在確認した直接mp3 URLでカタログ化（試聴／DL／お気に入り可）
-- カテゴリーで利用条件が違うので、使う前に必ず元サイトで条件確認（アプリ内にも明記＋リンク）
-- 効果音カテゴリー（HSP3／Adobe Audition 等）は元サイトへのリンクから辿れる。カタログ追加は `data/library.json` に行を足すだけ
+- 出典: [プロ生 無料素材 (sounds.pronama.jp)](https://sounds.pronama.jp/) / [VSQ plus+](https://vsq.co.jp/plus/)
+- 収録アイテム（試聴／DL／お気に入り可、直接mp3 URLを実在確認済み）:
+  プロ生 無料素材（ゲームBGM）21件 ＋ HSP3 無料素材（効果音34件＋BGM 18件）
+- リンク収録（件数が膨大なためカテゴリー別リンクをアプリ内に表示し、元サイトで試聴・DL）:
+  Adobe Audition Sound Effects（プロ生経由）/ VSQ plus+（全1,726種類・商用可・表記不要、素材そのものの再配布・販売は禁止）
+- 利用条件は出典・カテゴリーで違うので、使う前に必ず元サイトで条件確認（アプリ内にも明記＋リンク）
+- カタログの再生成は `data/build_library.py`（アイテム追加はそこへ足して実行）
 
 ## 起動
 ```
@@ -48,6 +51,10 @@
   ネットワーク（自宅 LAN / Tailscale）の中だけで使う前提です。
 
 ## AIエンジンの入れ方（Mac想定・VMで検証済みの組み合わせ）
+**Python は 3.12 / 3.13 が必須**（2026-10-31 判明）: transformers==4.46.3 が要求する
+tokenizers 0.20.x は Python 3.14 用ホイールが無く、ソースビルドも PyO3 の対応上限
+（3.13）で失敗する。Mac の `mac/AIセットアップ.command` は Python 3.12 を自動で探し
+（無ければ Homebrew で導入）、.venv を 3.12 で作り直す（旧 .venv は退避）。
 ```
 .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu   # Macは通常の pip install torch でMPS版
 .venv/bin/pip install diffusers==0.30.3 transformers==4.46.3 accelerate
