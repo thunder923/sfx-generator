@@ -109,10 +109,13 @@
     <div class="card">
       <input type="text" id="prompt" placeholder="作りたい音を書く（プリセットも自由入力も日本語OK（英語に翻訳してAIに渡します））">
       <div id="chips" style="margin:8px 0"></div>
-      <label class="note">長さ <select id="seconds"><option>2</option><option selected>3</option><option>5</option><option>10</option></select> 秒</label>
+      <label class="note">長さ <select id="seconds"><option>2</option><option selected>3</option><option>5</option><option>10</option><option>20</option><option>30</option><option>60</option></select> 秒</label>
       <label class="note">エンジン <select id="engine">
         <option value="auto">自動（AIがあればAI）</option><option value="ai">AI（AudioLDM2・無料）</option>
+        <option value="sa3">AI高音質（Stable Audio 3 SFX・フォーリー／環境音向き）</option>
+        <option value="tangoflux">AI予備（TangoFlux・最長30秒）</option>
         <option value="synth">簡易シンセ（即時・軽い）</option></select></label>
+      <label class="note">出力 <select id="format"><option value="stereo" selected>ステレオ</option><option value="mono">モノラル</option></select> <select id="rate"><option value="48000" selected>48kHz</option><option value="44100">44.1kHz</option></select></label>
       <label class="note">パターン数 <select id="takes"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></label>
       <button class="primary" id="go">生成する</button>
       <span id="status" class="note"></span>
@@ -145,7 +148,7 @@
       <h3>AI生成</h3>
       <ol class="guide">
         <li>作りたい音を入力する（プリセットのボタンも自由入力も日本語OK。自由入力は英語に翻訳してからAIに渡します（生成後に実際に使った英語が表示されます）。パターン数を増やすと、違う音の候補が複数出ます）。</li>
-        <li>長さとエンジンを選んで「生成する」。AI（AudioLDM2）は初回だけモデル（約3.5GB）の自動ダウンロードがあり、生成にも時間がかかります。</li>
+        <li>長さとエンジンを選んで「生成する」。AI（AudioLDM2）は初回だけモデル（約3.5GB）の自動ダウンロードがあり、生成にも時間がかかります。AI高音質（Stable Audio 3 SFX）はフォーリー・環境音専用で最長120秒まで作れます。AI予備（TangoFlux）は予備エンジンで最長30秒までです。出力は 48kHz／44.1kHz とステレオ／モノラルを選べます（AIエンジンは 44.1kHz がそのままの音、48kHz は映像用に変換して出します）。</li>
         <li>気に入ったら ⬇ DL で保存するか、☆ お気に入りに入れる。</li>
       </ol>
       <h3>フリー音源ライブラリ</h3>
@@ -168,7 +171,7 @@
       <h2>🔒 プライバシーポリシー</h2>
       <ul class="guide">
         <li><b>生成はすべてこのマシンの中で行われます。</b>入力したプロンプトや、生成した音が外部のサーバーへ送信されることはありません。</li>
-        <li>AI モデル（AudioLDM2）を使う場合、<b>初回の生成時だけ</b>モデル本体（約3.5GB）を Hugging Face から自動ダウンロードします。このとき外へ出るのはモデル取得のリクエストだけで、プロンプト等のデータは送信されません。</li>
+        <li>AI モデル（AudioLDM2 / Stable Audio 3 / TangoFlux）を使う場合、<b>初回の生成時だけ</b>モデル本体を Hugging Face から自動ダウンロードします。このとき外へ出るのはモデル取得のリクエストだけで、プロンプト等のデータは送信されません。</li>
         <li>お気に入りは、お使いの<b>ブラウザの中だけ</b>に保存されます（生成音は IndexedDB、ライブラリのお気に入りは localStorage）。サーバー側に保存されることはなく、サーバーは生成結果もメモリ上だけに持ち、ディスクには何も書きません。</li>
         <li>フリー音源ライブラリの音源は、出典サイト（プロ生 無料素材／HSP3 無料素材）のサーバーから直接読み込んで再生します。ライブラリを開くと出典サイトへアクセスし、「元サイト」や Adobe Audition／VSQ plus+ のカテゴリーリンクは外部サイトを開きます。</li>
         <li>作者への送信や、利用状況の収集（アクセス解析・テレメトリ）はありません。</li>
@@ -287,9 +290,11 @@ $('tabPriv').onclick = () => show('secPriv');
 // ---------- init ----------
 (async () => {
   const eng = await (await fetch('/api/engines')).json();
-  $('engineNote').textContent = eng.ai_audioldm2
+  $('engineNote').textContent = (eng.ai_audioldm2
     ? 'AIエンジン（AudioLDM2・無料／ローカル）: 利用可能。' + eng.ai_note
-    : 'AIエンジン未導入のため簡易シンセで生成します。AIを使うにはサーバー側で torch + diffusers を入れてください（README）。';
+    : 'AIエンジン（AudioLDM2）未導入のため簡易シンセで生成します。')
+    + (eng.ai_sa3 ? ' Stable Audio 3 SFX: 利用可能（フォーリー・環境音は最長120秒）。' : '')
+    + (eng.ai_tangoflux ? ' TangoFlux（予備）: 利用可能（最長30秒）。' : '');
   const presets = await (await fetch('/api/presets')).json();
   for (const p of presets) {
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = p.jp;
@@ -316,14 +321,14 @@ $('go').onclick = async () => {
     for (let i = 0; i < takes; i++) {
       $('status').textContent = `生成中… ${i + 1}/${takes} パターン目（AIは1つ約30秒、初回はモデル読込が入ります）`;
       const r = await (await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, seconds: +$('seconds').value, engine: $('engine').value, guidance: guides[i % guides.length] }) })).json();
+        body: JSON.stringify({ prompt, seconds: +$('seconds').value, engine: $('engine').value, format: $('format').value, rate: +$('rate').value, guidance: guides[i % guides.length] }) })).json();
       if (!r.ok) { $('status').textContent = '⚠ ' + r.error; break; }
       const resp = await fetch(r.url); const blob = await resp.blob();
       generated.unshift({ id: r.id, prompt, engine: r.engine_used, seed: r.seed, url: URL.createObjectURL(blob), blob });
       last = r; done++;
       renderResults();
     }
-    if (done) $('status').textContent = `生成完了 ${done}パターン（${last.engine_used}）` + (last.engine_used === 'audioldm2' && last.prompt_used ? `プロンプト: ${last.prompt_used}` : '') + '　※もう一度押すとまた別の音が出ます';
+    if (done) $('status').textContent = `生成完了 ${done}パターン（${last.engine_used}）` + (last.prompt_used && last.engine_used !== last.prompt_used ? `プロンプト: ${last.prompt_used}` : '') + '　※もう一度押すとまた別の音が出ます';
   } catch (e) { $('status').textContent = '⚠ ' + e; }
   $('go').disabled = false;
 };

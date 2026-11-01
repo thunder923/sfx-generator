@@ -7,11 +7,15 @@
 - **それ以外は消える**: 生成結果はサーバーのメモリ(RAM)と画面上だけに存在 → リロード／サーバー再起動で消える。サーバーはディスクに何も書かない
 - **ローカルにダウンロード可**: 全アイテムに ⬇ DL ボタン
 
-## 2つの生成エンジン
+## 4つの生成エンジン
 | エンジン | 内容 | 状態 |
 |---|---|---|
-| AI（AudioLDM2） | 無料・ローカル・APIキー不要の text-to-audio モデル（cvssp/audioldm2、diffusers）。日本語プリセットは英語プロンプトに翻訳済み。初回はモデル約3.5GBを自動DL。CPUだと10秒生成に数分、Mac(Apple Silicon MPS)／GPU推奨 | ✅ 実生成まで検証済み（2026-10-27）: 「爆発」5秒を生成成功（RMS 0.114 / peak 0.744）。このVMのCPUでは生成約5分。サンプル: `sample_audioldm2_explosion.wav`。バージョン固定が必須（下記 requirements 参照: diffusers 0.30.3 + transformers 4.46.3） |
+| AI（AudioLDM2） | 無料・ローカル・APIキー不要の text-to-audio モデル（cvssp/audioldm2、diffusers）。日本語プリセットは英語プロンプトに翻訳済み。初回はモデル約3.5GBを自動DL。CPUだと10秒生成に数分、Mac(Apple Silicon MPS)／GPU推奨。出力はモノラル16kHz（納品時に48kHz化） | ✅ 実生成まで検証済み（2026-10-27）: 「爆発」5秒を生成成功（RMS 0.114 / peak 0.744）。このVMのCPUでは生成約5分。サンプル: `sample_audioldm2_explosion.wav`。バージョン固定が必須（下記 requirements 参照: diffusers 0.30.3 + transformers 4.46.3） |
+| AI高音質（Stable Audio 3 Small SFX） | Stability AI のフォーリー／環境音専用モデル（stabilityai/stable-audio-3-small-sfx、Stability AI Community License＝年商100万ドル未満は商用可）。ステレオ44.1kHz・最長120秒・CPU前提設計。依存が AudioLDM2 と競合するため公式リポジトリを `sa3/` に隔離し、専用venvからサブプロセスで呼ぶ（gen/sa3_engine.py / sa3_worker.py）。Mac導入は AIセットアップ.command が担当 | VMで導入・検証中（2026-11-01） |
+| AI予備（TangoFlux） | declare-lab の text-to-audio モデル（declare-lab/TangoFlux、Apache 2.0・同意不要・非ゲート）。ステレオ44.1kHz・最長30秒。SA3の予備として導入。依存が競合するため公式リポジトリを `tangoflux/` に隔離し、専用venv（torch 2.4 / transformers 4.44 / diffusers 0.30）からサブプロセスで呼ぶ（gen/tangoflux_engine.py / tangoflux_worker.py）。Mac導入は AIセットアップ.command が担当 | VMで導入・検証中（2026-11-01） |
 | 簡易シンセ | DSP合成レシピ12種（爆発／雨／風／雷／波／ビープ／チャイム／ノック／足音／水滴／剣／魔法）。即時生成 | ✅ 動作検証済み |
+
+納品（ダウンロードされるWAV）は全エンジン共通で、出力選択で **48kHz／44.1kHz** とステレオ／モノラルを選べる（既定は48kHz。AIエンジンのネイティブは44.1kHzで、44.1kHz選択時は無変換、48kHz選択時はポリフェーズ変換で出力。モノラル素材のステレオ化はデュアルモノラル）。
 
 ## フリー音源ライブラリ
 - 出典: [プロ生 無料素材 (sounds.pronama.jp)](https://sounds.pronama.jp/) / [VSQ plus+](https://vsq.co.jp/plus/)
@@ -39,9 +43,9 @@
 ## プライバシーポリシー（要約・アプリ内に全文表示あり）
 - **生成はすべてローカル処理**です。プロンプトや生成音が外部サーバーへ
   送信されることはありません。
-- AI モデル（AudioLDM2）使用時のみ、初回生成時にモデル本体（約3.5GB）を
-  Hugging Face から自動ダウンロードします（`gen/ai_engine.py` の
-  `from_pretrained("cvssp/audioldm2")`）。プロンプト等は送信されません。
+- AI モデル（AudioLDM2 / Stable Audio 3 / TangoFlux）使用時のみ、初回生成時に
+  モデル本体を Hugging Face から自動ダウンロードします。プロンプト等は
+  送信されません。
 - お気に入りはブラウザ内（生成音は IndexedDB、ライブラリは localStorage）に
   保存。サーバーは生成結果を RAM に持つだけで、ディスクに何も書きません。
 - ライブラリ音源は出典サイト（プロ生 無料素材）のサーバーからブラウザが
