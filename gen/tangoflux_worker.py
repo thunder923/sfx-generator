@@ -35,12 +35,28 @@ def main() -> None:
     from tangoflux import TangoFluxInference
 
     model = TangoFluxInference(name="declare-lab/TangoFlux", device=device)
-    wave_t = model.generate(
-        a.prompt,
-        steps=int(a.steps),
-        duration=float(a.seconds),
-    )
-    sr = 44100
+    # Same recipe as TangoFluxInference.generate(), but the T5 text
+    # encoder (~3 GB in fp32) is released after the diffusion flow and
+    # before the VAE decode: on small-RAM machines (<=8 GB, no swap)
+    # the stock generate() gets OOM-killed at the decode step, after
+    # all diffusion steps have already completed.
+    import gc
+
+    with torch.no_grad():
+        latents = model.model.inference_flow(
+            a.prompt,
+            duration=float(a.seconds),
+            num_inference_steps=int(a.steps),
+            guidance_scale=4.5,
+        )
+        try:
+            model.model.text_encoder = None
+        except Exception:
+            pass
+        gc.collect()
+        wave_t = model.vae.decode(latents.transpose(2, 1)).sample.cpu()[0]
+    sr = int(model.vae.config.sampling_rate)
+    wave_t = wave_t[:, : int(float(a.seconds) * sr)]
     arr = wave_t.detach().cpu().numpy() if hasattr(wave_t, "detach") else np.asarray(wave_t)
     arr = np.asarray(arr, dtype=np.float32)
     if arr.ndim == 3:  # (batch, ch, n)
