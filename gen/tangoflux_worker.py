@@ -49,13 +49,28 @@ def main() -> None:
             num_inference_steps=int(a.steps),
             guidance_scale=4.5,
         )
+        # Decode needs only the VAE. Free the T5 text encoder AND the
+        # DiT itself, and return the freed heap to the OS: freeing T5
+        # alone was not enough (the worker was still OOM-killed at
+        # decode), because the allocator kept the pages and the DiT
+        # (~2 GB fp32) stayed resident next to the VAE.
+        vae = model.vae
+        sr = int(model.vae.config.sampling_rate)
         try:
             model.model.text_encoder = None
         except Exception:
             pass
+        try:
+            model.model = None
+        except Exception:
+            pass
         gc.collect()
-        wave_t = model.vae.decode(latents.transpose(2, 1)).sample.cpu()[0]
-    sr = int(model.vae.config.sampling_rate)
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        wave_t = vae.decode(latents.transpose(2, 1)).sample.cpu()[0]
     wave_t = wave_t[:, : int(float(a.seconds) * sr)]
     arr = wave_t.detach().cpu().numpy() if hasattr(wave_t, "detach") else np.asarray(wave_t)
     arr = np.asarray(arr, dtype=np.float32)
