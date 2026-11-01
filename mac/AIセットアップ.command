@@ -134,11 +134,81 @@ PYEOF
   echo
 fi
 
+# 6) Stable Audio 3 SFX（フォーリー／環境音用・別環境に隔離）
+# AudioLDM2 と依存が競合するため、公式リポジトリを sa3/ に clone し、
+# その中の専用 .venv で動かす（アプリからはサブプロセスで呼ぶ）。
+echo "--- Stable Audio 3 SFX をセットアップします（別環境）---"
+SA3_OK=0
+if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
+  echo "uv が無いのでインストールします"
+  curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1
+fi
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+if [ -x "$UV" ]; then
+  if [ ! -d sa3/stable_audio_3 ]; then
+    git clone --depth 1 https://github.com/Stability-AI/stable-audio-3 sa3
+  fi
+  if (cd sa3 && "$UV" sync); then
+    echo "--- Stable Audio 3 SFX モデルを先にダウンロードします ---"
+    if (cd sa3 && .venv/bin/python -c "from stable_audio_3 import StableAudioModel; StableAudioModel.from_pretrained('small-sfx'); print('model ready')"); then
+      SA3_OK=1
+      echo "✅ Stable Audio 3 SFX のセットアップ完了"
+    else
+      echo "⚠️ SA3 モデルのダウンロードに失敗しました（初回生成時に自動で再試行されます）"
+    fi
+  else
+    echo "⚠️ SA3 環境の構築に失敗しました（AudioLDM2 と簡易シンセは使えます）"
+  fi
+else
+  echo "⚠️ uv を用意できなかったため SA3 はスキップしました"
+fi
+echo
+
+# 7) TangoFlux（予備エンジン・別環境に隔離）
+# 依存が競合するため、公式リポジトリを tangoflux/ に clone し、
+# その中の専用 .venv (torch 2.4 / transformers 4.44 / diffusers 0.30) で
+# 動かす（アプリからはサブプロセスで呼ぶ）。モデルは非ゲート (Apache 2.0)。
+echo "--- TangoFlux（予備エンジン）をセットアップします（別環境）---"
+TF_OK=0
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+if [ -x "$UV" ]; then
+  if [ ! -d tangoflux/tangoflux ]; then
+    git clone --depth 1 https://github.com/declare-lab/TangoFlux tangoflux
+  fi
+  if (cd tangoflux \
+      && "$UV" venv .venv --python 3.12 \
+      && "$UV" pip install --python .venv/bin/python torch==2.4.0 torchaudio==2.4.0 \
+      && "$UV" pip install --python .venv/bin/python transformers==4.44.0 diffusers==0.30.0 accelerate==0.34.2 datasets==2.21.0 safetensors tqdm pyyaml "numpy>=2" soundfile huggingface-hub); then
+    echo "--- TangoFlux モデルを先にダウンロードします ---"
+    if (cd tangoflux && PYTHONPATH=$PWD .venv/bin/python -c "from tangoflux import TangoFluxInference; TangoFluxInference(name='declare-lab/TangoFlux', device='cpu'); print('model ready')"); then
+      TF_OK=1
+      echo "✅ TangoFlux のセットアップ完了"
+    else
+      echo "⚠️ TangoFlux モデルのダウンロードに失敗しました（初回生成時に自動で再試行されます）"
+    fi
+  else
+    echo "⚠️ TangoFlux 環境の構築に失敗しました（他のエンジンは使えます）"
+  fi
+else
+  echo "⚠️ uv を用意できなかったため TangoFlux はスキップしました"
+fi
+echo
+
 echo "=== セットアップ完了 ==="
 if [ "$AI_OK" = "1" ]; then
   echo "AIエンジン（AudioLDM2）: 利用可能になっています。"
 else
   echo "AIエンジン（AudioLDM2）: まだ使えません（簡易シンセでの生成は可能です）。"
+fi
+if [ "$SA3_OK" = "1" ]; then
+  echo "AI高音質エンジン（Stable Audio 3 SFX）: 利用可能になっています。"
+else
+  echo "AI高音質エンジン（Stable Audio 3 SFX）: まだ使えません（上の表示を確認してください）。"
+fi
+if [ "$TF_OK" = "1" ]; then
+  echo "AI予備エンジン（TangoFlux）: 利用可能になっています。"
+else
+  echo "AI予備エンジン（TangoFlux）: まだ使えません（上の表示を確認してください）。"
 fi
 echo "「一発起動.command」をダブルクリックするとアプリが Safari で開きます。"
 echo "このウィンドウは閉じてOKです。"

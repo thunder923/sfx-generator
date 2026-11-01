@@ -18,3 +18,24 @@ accelerate
 # without it the app falls back to the Google Translate web endpoint.
 sentencepiece
 sacremoses
+# --- Stable Audio 3 SFX engine (gen/sa3_engine.py) — SEPARATE environment ---
+# SA3 has its own stack (torch 2.7 + own lockfile) that conflicts with the
+# pins above, so it lives in its own clone + venv at sa3/ (gitignored):
+#   git clone https://github.com/Stability-AI/stable-audio-3 sa3
+#   cd sa3 && uv sync        (uv: https://astral.sh/uv)
+# The app runs gen/sa3_worker.py with sa3/.venv's python as a subprocess.
+# Model (stabilityai/stable-audio-3-small-sfx, Stability AI Community
+# License) downloads from Hugging Face on first generation.
+# --- TangoFlux reserve engine (gen/tangoflux_engine.py) — SEPARATE env ---
+# TangoFlux pins its own stack (torch 2.4 / transformers 4.44 /
+# diffusers 0.30), so it lives in its own clone + venv at tangoflux/
+# (gitignored):
+#   git clone https://github.com/declare-lab/TangoFlux tangoflux
+#   cd tangoflux && uv venv .venv --python 3.12
+#   uv pip install --python .venv/bin/python torch==2.4.0 torchaudio==2.4.0
+#   uv pip install --python .venv/bin/python transformers==4.44.0 \
+#     diffusers==0.30.0 accelerate==0.34.2 datasets==2.21.0 safetensors \
+#     tqdm pyyaml "numpy>=2" soundfile huggingface-hub
+# The app runs gen/tangoflux_worker.py with tangoflux/.venv's python as a
+# subprocess. Model (declare-lab/TangoFlux, Apache 2.0, not gated)
+# downloads from Hugging Face on first generation.
