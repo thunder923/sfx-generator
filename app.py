@@ -13,6 +13,9 @@ Run:  uvicorn app:app --port 8300   (or .venv/bin/python app.py)
 """
 import io
 import json
+import time
+import urllib.parse
+import urllib.request
 import uuid
 import wave
 from pathlib import Path
@@ -111,6 +114,59 @@ def presets():
 @app.get("/api/library")
 def library():
     return json.loads((BASE / "data" / "library.json").read_text(encoding="utf-8"))
+
+
+# --- Openverse: live search of CC-licensed real recordings (api.openverse.org) ---
+# Only the search keyword leaves this machine. Anonymous access has a quota
+# (20/min, 200/day), so identical searches are cached for 10 minutes.
+_OV_CACHE: dict[str, tuple[float, dict]] = {}
+_OV_TTL = 600.0
+
+
+@app.get("/api/openverse")
+def openverse(q: str = "", commercial: bool = True, page: int = 1):
+    q = q.strip()
+    if not q:
+        return {"ok": False, "error": "検索キーワードを入力してください"}
+    key = f"{q}|{commercial}|{page}"
+    now = time.monotonic()
+    hit = _OV_CACHE.get(key)
+    if hit and now - hit[0] < _OV_TTL:
+        return hit[1]
+    params = {"q": q, "page": page, "page_size": 20, "filter_dead": "true"}
+    if commercial:
+        params["license_type"] = "commercial,modification"
+    url = "https://api.openverse.org/v1/audio/?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "sfx-generator (personal local tool)", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        return {"ok": False,
+                "error": f"Openverseへ接続できませんでした（回線の不調か、先方の利用枠の上限の可能性があります）: {e}"}
+    items = []
+    for r in raw.get("results", []):
+        if not r.get("url"):
+            continue
+        items.append({
+            "id": f"ov-{r.get('id')}",
+            "title": r.get("title") or "(no title)",
+            "creator": r.get("creator") or "",
+            "url": r.get("url"),
+            "page": r.get("foreign_landing_url") or "",
+            "license": (r.get("license") or "").lower(),
+            "license_version": r.get("license_version") or "",
+            "license_url": r.get("license_url") or "",
+            "attribution": r.get("attribution") or "",
+            "duration_ms": r.get("duration"),
+            "filetype": (r.get("filetype") or "").lower(),
+            "source": r.get("source") or "",
+        })
+    out = {"ok": True, "items": items, "result_count": raw.get("result_count"),
+           "page": raw.get("page", page), "page_count": raw.get("page_count")}
+    _OV_CACHE[key] = (now, out)
+    return out
 
 
 @app.post("/api/generate")

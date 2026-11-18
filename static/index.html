@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="apple-touch-icon" href="https://drive.google.com/thumbnail?id=19ptB2mYX1g8Yt9MJRiPbF8qEArtwPFM4&sz=w180">
 <script>
   // テーマ切替: 'auto' は OS の prefers-color-scheme に従う (既定)。選択は localStorage 'theme-mode' に保持。
   (function () {
@@ -159,6 +161,15 @@
     <div class="card">
       <input type="text" id="libSearch" placeholder="キーワードで探す（例: ホラー、勝利、ピアノ、HSP3、爆発）">
       <p class="note" id="libNote"></p>
+      <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+        <h3 style="margin-top:0">🌐 Openverse で実素材を探す（CCライセンス音源）</h3>
+        <p class="note">生成ではなく<b>実録音</b>の素材を、世界中のCC音源から検索します。検索は英語がヒットしやすいです（例: rain、explosion、crowd cheering）。検索キーワードは Openverse（api.openverse.org）へ送信されます。ライセンスは素材ごとに表示されるので、使う前に必ず確認してください。</p>
+        <input type="text" id="ovSearch" placeholder="英語キーワードで探す（例: thunder、door slam、cat meow）">
+        <label class="note"><input type="checkbox" id="ovCommercial" checked> 商用OK・改変OKのみ（NCなどを除外）</label>
+        <button class="primary" id="ovGo">Openverseで検索</button>
+        <span id="ovStatus" class="note"></span>
+        <div id="ovList"></div>
+      </div>
       <div id="libBrowse"></div>
       <div id="libList"></div>
     </div>
@@ -187,6 +198,7 @@
         <li>キーワードで検索して試聴・DL できます。収録分は「プロ生 無料素材（ゲームBGM 21件）」と「HSP3 無料素材（効果音34件＋BGM 18件）」です。</li>
         <li>「Adobe Audition」と「VSQ plus+」は件数が膨大なため、カテゴリー別リンクから元サイトを開いて試聴・DL する形にしています。</li>
         <li>利用条件は出典・カテゴリーごとに違うので、使う前に必ず元サイトで確認してください（VSQ plus+ は商用可・表記不要ですが、素材そのものの再配布・販売は禁止です）。</li>
+        <li>「🌐 Openverse で実素材を探す」は、世界中のCCライセンス音源（実録音）をその場で検索します。ライセンスは素材ごとに違います。各素材に表示されるライセンスと帰属表示文を確認してください（CC BY は帰属表示が必要、CC0 は表示不要です）。「商用OK・改変OKのみ」をONにすると、商用利用や改変ができない素材（NC・ND付き）は除外されますが、最終確認は素材の元ページでお願いします。検索は英語キーワードがヒットしやすいです。</li>
       </ul>
       <h3>保存先と注意点</h3>
       <ul class="guide">
@@ -206,6 +218,7 @@
         <li>AI モデル（AudioLDM2 / Stable Audio 3 / TangoFlux）を使う場合、<b>初回の生成時だけ</b>モデル本体を Hugging Face から自動ダウンロードします。このとき外へ出るのはモデル取得のリクエストだけで、プロンプト等のデータは送信されません。</li>
         <li>お気に入りは、お使いの<b>ブラウザの中だけ</b>に保存されます（生成音は IndexedDB、ライブラリのお気に入りは localStorage）。サーバー側に保存されることはなく、サーバーは生成結果もメモリ上だけに持ち、ディスクには何も書きません。</li>
         <li>フリー音源ライブラリの音源は、出典サイト（プロ生 無料素材／HSP3 無料素材）のサーバーから直接読み込んで再生します。ライブラリを開くと出典サイトへアクセスし、「元サイト」や Adobe Audition／VSQ plus+ のカテゴリーリンクは外部サイトを開きます。</li>
+        <li>Openverse検索を使った場合のみ、<b>検索キーワード</b>が Openverse（api.openverse.org）へ送信されます。見つかった音源は、各出典サイトのサーバーから直接読み込んで再生します。検索しなければ送信はされません。</li>
         <li>作者への送信や、利用状況の収集（アクセス解析・テレメトリ）はありません。</li>
         <li>この画面は同じネットワーク（自宅 LAN / Tailscale）内の端末からも開けます。パスワード等の認証はないので、信頼できるネットワークの中だけで使ってください。</li>
       </ul>
@@ -228,6 +241,7 @@ async function idbDel(id) { const db = await idb; db.transaction('favAudio', 're
 // ---------- state: generated results live ONLY in this page's memory ----------
 let generated = [];   // {id, prompt, engine, url(blob:), blob}
 let libItems = [], libFavs = new Set(JSON.parse(localStorage.getItem('sfx-lib-favs') || '[]'));
+let ovItems = [], ovFavs = JSON.parse(localStorage.getItem('sfx-ov-favs') || '[]');
 const $ = id => document.getElementById(id);
 
 function dl(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }
@@ -269,6 +283,10 @@ async function renderFavs() {
     box.appendChild(itemRow({ name: `🎧 ${f.name}（${f.engine}）`, url, favOn: true,
       onFav: async () => { await idbDel(f.id); renderFavs(); renderResults(); } }));
   }
+  for (const it of ovFavs) {
+    any = true;
+    box.appendChild(ovRow(it, true));
+  }
   for (const it of libItems.filter(i => libFavs.has(i.id))) {
     any = true;
     const link = document.createElement('a'); link.href = it.page; link.target = '_blank'; link.textContent = '元サイト（条件確認）';
@@ -307,6 +325,67 @@ function renderLib() {
   }
 }
 
+// ---------- Openverse (CC real recordings, live search) ----------
+function saveOvFavs() { localStorage.setItem('sfx-ov-favs', JSON.stringify(ovFavs)); }
+function ovLicenseLabel(it) {
+  const lic = (it.license || '').toUpperCase();
+  if (lic === 'CC0' || lic === 'PDM') return lic + ' ' + (it.license_version || '') + '（帰属表示不要）';
+  return 'CC ' + lic + ' ' + (it.license_version || '');
+}
+function ovRow(it, favOn) {
+  const div = document.createElement('div'); div.className = 'item';
+  const name = document.createElement('span'); name.className = 'name';
+  name.textContent = it.title + (it.creator ? ` / ${it.creator}` : '');
+  div.appendChild(name);
+  const au = document.createElement('audio'); au.controls = true; au.src = it.url; au.preload = 'none'; div.appendChild(au);
+  const ext = it.filetype || (it.url.split('?')[0].split('.').pop() || 'mp3');
+  const bDl = document.createElement('button'); bDl.textContent = '⬇ DL';
+  bDl.onclick = () => dl(it.url, it.title.replace(/[^\wぁ-んァ-ヶ一-龠-]/g, '_').slice(0, 80) + '.' + ext);
+  div.appendChild(bDl);
+  const isFav = favOn !== undefined ? favOn : ovFavs.some(f => f.id === it.id);
+  const bFav = document.createElement('button'); bFav.className = 'fav' + (isFav ? ' on' : '');
+  bFav.textContent = isFav ? '★ お気に入り済' : '☆ お気に入り';
+  bFav.onclick = () => {
+    if (ovFavs.some(f => f.id === it.id)) ovFavs = ovFavs.filter(f => f.id !== it.id);
+    else ovFavs.push(it);
+    saveOvFavs(); renderOv(); renderFavs();
+  };
+  div.appendChild(bFav);
+  const meta = document.createElement('span'); meta.className = 'tag';
+  const ncWarn = (it.license || '').includes('-nc') ? ' ⚠ 非商用のみ（NC）' : '';
+  meta.textContent = `【Openverse/${it.source || ''}】 ${ovLicenseLabel(it)}${ncWarn}` +
+    (it.duration_ms ? ` / ${Math.round(it.duration_ms / 1000)}秒` : '');
+  const wrap = document.createElement('span'); wrap.appendChild(meta);
+  if (it.page) { const a = document.createElement('a'); a.href = it.page; a.target = '_blank'; a.textContent = ' 元ページ（条件確認）'; wrap.appendChild(a); }
+  if (it.license_url) { const a = document.createElement('a'); a.href = it.license_url; a.target = '_blank'; a.textContent = ' ライセンス全文'; wrap.appendChild(a); }
+  if (it.attribution) {
+    const att = document.createElement('div'); att.className = 'note'; att.style.flexBasis = '100%';
+    att.textContent = '帰属表示文: ' + it.attribution;
+    wrap.appendChild(att);
+  }
+  div.appendChild(wrap);
+  return div;
+}
+function renderOv() {
+  const box = $('ovList'); if (!box) return; box.innerHTML = '';
+  for (const it of ovItems) box.appendChild(ovRow(it));
+}
+async function searchOv() {
+  const q = $('ovSearch').value.trim(); if (!q) { $('ovStatus').textContent = 'キーワードを入力してください'; return; }
+  $('ovGo').disabled = true; $('ovStatus').textContent = '検索中…';
+  try {
+    const r = await (await fetch(`/api/openverse?q=${encodeURIComponent(q)}&commercial=${$('ovCommercial').checked}`)).json();
+    if (!r.ok) { $('ovStatus').textContent = '⚠ ' + r.error; ovItems = []; }
+    else {
+      ovItems = r.items;
+      $('ovStatus').textContent = ovItems.length
+        ? `${r.result_count}件中 ${ovItems.length}件を表示（ライセンスは各素材の表示を確認してください）`
+        : '見つかりませんでした（英語キーワードだとヒットしやすいです）';
+    }
+  } catch (e) { $('ovStatus').textContent = '⚠ 通信エラー: ' + e; ovItems = []; }
+  renderOv(); $('ovGo').disabled = false;
+}
+
 // ---------- tabs ----------
 function show(sec) {
   for (const [b, s] of [['tabGen', 'secGen'], ['tabLib', 'secLib'], ['tabFav', 'secFav'], ['tabHelp', 'secHelp'], ['tabPriv', 'secPriv']]) {
@@ -342,6 +421,8 @@ $('tabPriv').onclick = () => show('secPriv');
 })();
 
 $('libSearch').oninput = renderLib;
+$('ovGo').onclick = searchOv;
+$('ovSearch').addEventListener('keydown', e => { if (e.key === 'Enter') searchOv(); });
 
 $('go').onclick = async () => {
   const prompt = $('prompt').value.trim(); if (!prompt) return;
