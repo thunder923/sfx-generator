@@ -338,7 +338,8 @@ function ovRow(it, favOn) {
   name.textContent = it.title + (it.creator ? ` / ${it.creator}` : '');
   div.appendChild(name);
   const au = document.createElement('audio'); au.controls = true; au.src = it.url; au.preload = 'none'; div.appendChild(au);
-  const ext = it.filetype || (it.url.split('?')[0].split('.').pop() || 'mp3');
+  let ext = (it.filetype || '').toLowerCase();
+  if (!['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'aif', 'aiff', 'opus'].includes(ext)) ext = 'mp3';
   const bDl = document.createElement('button'); bDl.textContent = '⬇ DL';
   bDl.onclick = () => dl(it.url, it.title.replace(/[^\wぁ-んァ-ヶ一-龠-]/g, '_').slice(0, 80) + '.' + ext);
   div.appendChild(bDl);

@@ -160,7 +160,9 @@ def openverse(q: str = "", commercial: bool = True, page: int = 1):
             "license_url": r.get("license_url") or "",
             "attribution": r.get("attribution") or "",
             "duration_ms": r.get("duration"),
-            "filetype": (r.get("filetype") or "").lower(),
+            "filetype": (r.get("filetype") or "").lower()
+                        if (r.get("filetype") or "").lower() in
+                        ("mp3", "wav", "flac", "ogg", "oga", "m4a", "aac", "aif", "aiff", "opus") else "",
             "source": r.get("source") or "",
         })
     out = {"ok": True, "items": items, "result_count": raw.get("result_count"),
